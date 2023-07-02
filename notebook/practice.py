@@ -162,6 +162,13 @@ from dateutil import tz
 from collections import defaultdict
 from pathlib import Path
 
+# TECu - Total Electron Content Unit
+# ROTI Maps
+# tnpgn - Turkish National Permanent GNSS Network
+# Global Navigation Satellite System (GNSS)
+# DTEC (Differential Total Electron Content)
+# VTEC (Vertical Total Electron Content)
+
 """# Define some constants"""
 
 C_LIMITS ={
@@ -233,7 +240,7 @@ def plot_map(plot_times, data, type_d,
              markers=[],
              sort=False,
              use_alpha=False,
-             clims=C_LIMITS,
+             c_limits=C_LIMITS,
              savefig=''):
     """
     Plotting data
@@ -284,8 +291,8 @@ def plot_map(plot_times, data, type_d,
             sctr = ax1.scatter(lons, lats, c=values,
                                alpha = alphas,
                                marker = 's', s =15, zorder=3,
-                               vmin = clims[prod][0],
-                               vmax = clims[prod][1],
+                               vmin = c_limits[prod][0],
+                               vmax = c_limits[prod][1],
                                cmap = 'jet')
             for marker in markers: #расстановка звёздочек
                 ax1.scatter(marker['lon'], marker['lat'],
@@ -301,7 +308,7 @@ def plot_map(plot_times, data, type_d,
                                     0.02,
                                     ax1.get_position().height])
                 cbar = ax1.figure.colorbar(sctr, cax=cax)
-                cbar_label = clims[prod][2] + "\n" if type_d == "ROTI" else clims[prod][2]
+                cbar_label = c_limits[prod][2] + "\n" if type_d == "ROTI" else c_limits[prod][2]
                 cbar.ax.set_ylabel(cbar_label, rotation=-90, va="bottom")
             directory = os.getcwd()
             ax1.xaxis.set_ticks_position('none')
@@ -317,7 +324,7 @@ def plot_map(plot_times, data, type_d,
     plt.rcdefaults()
 
 
-#Read data and arrays from h5 file
+#Read data from h5 file to python dict
 def retrieve_data(file, type_d, times=[]):
     """
     Plotting data from map file
@@ -333,7 +340,7 @@ def retrieve_data(file, type_d, times=[]):
         for str_time in list(f_in['data'])[:]:
             time = datetime.strptime(str_time, TIME_FORMAT)
             time = time.replace(tzinfo=time.tzinfo or _UTC)
-            if times and not time in times:
+            if times and time not in times:
                 continue
             data[time] = f_in['data'][str_time][:]
     return data
@@ -348,9 +355,13 @@ def retrieve_data_multiple_source(files, type_d, times=[]):
         datas[time] = np.concatenate(datas[time])
     return datas
 
-def plot_maps(prod_files, prods, epc, clims=None, times=None, scale=1):
-    if clims:
-        C_LIMITS = clims
+#prod - product
+# times - array with time need to be select from the files
+def plot_maps(prod_files, prods, epicenters, c_limits=None, times=None, scale=1):
+    if not isinstance(epicenters, list):
+        epicenters = [epicenters]
+    if c_limits:
+        C_LIMITS = c_limits
     else:
         C_LIMITS ={
             'ROTI': [0,0.5*scale,'TECu/min'],
@@ -367,26 +378,27 @@ def plot_maps(prod_files, prods, epc, clims=None, times=None, scale=1):
                  datetime(2023, 2, 6, 10, 40),
                  datetime(2023, 2, 6, 10, 45, 0)]
     times = [t.replace(tzinfo=t.tzinfo or _UTC) for t in times]
+    # t = list(zip(*prod_files))
     for files in zip(*prod_files):
         data = retrieve_data_multiple_source(files, prods[files[0]], times)
         data = {prods[files[0]]: data}
         plot_map(times, data, prods[files[0]],
-    #             use_alpha=True,
+                 use_alpha=True,
                  lat_limits=(25, 50),
                  lon_limits=(25, 50),
                  sort=True,
-                 markers=[EPICENTERS['10:24']],
-                 clims=C_LIMITS)
+                 markers=epicenters,
+                 c_limits=C_LIMITS)
 
+plot_maps([FILES_PRODUCT_10_24, TNPGN_FILES_PRODUCT_10_24],
+          FILES_PRODUCT_10_24,
+          EPICENTERS['10:24'])
 plot_maps([FILES_PRODUCT_10_24],
           FILES_PRODUCT_10_24,
           EPICENTERS['10:24'])
 exit()
 
 
-plot_maps([FILES_PRODUCT_10_24, TNPGN_FILES_PRODUCT_10_24],
-          FILES_PRODUCT_10_24,
-          EPICENTERS['10:24'])
 
 
 plot_maps([TNPGN_FILES_PRODUCT_10_24],
