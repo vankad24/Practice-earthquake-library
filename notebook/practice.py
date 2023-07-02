@@ -390,15 +390,68 @@ def plot_maps(prod_files, prods, epicenters, c_limits=None, times=None, scale=1)
                  markers=epicenters,
                  c_limits=C_LIMITS)
 
-plot_maps([FILES_PRODUCT_10_24, TNPGN_FILES_PRODUCT_10_24],
-          FILES_PRODUCT_10_24,
-          EPICENTERS['10:24'])
-plot_maps([FILES_PRODUCT_10_24],
-          FILES_PRODUCT_10_24,
-          EPICENTERS['10:24'])
+from enum import Enum
+class MapType(Enum):
+    ROTI = 'ROTI'
+    TEC_2_10 = '2-10 minute TEC variations'
+    TEC_10_20 = '10-20 minute TEC variations'
+    TEC_20_60 = '20-60 minute TEC variations'
+    TEC = 'tec'
+    TEC_ADJUSTED = 'tec_adjusted'
+
+# epicenter - dict with lat, lon
+def my_plot_maps(files_path, map_type: MapType, epicenters, c_limits=None, times=None, scale=1, use_alpha=True):
+    type_d = map_type.value
+    if not isinstance(files_path, list):
+        files_path = [files_path]
+    if not isinstance(epicenters, list):
+        epicenters = [epicenters]
+    if not c_limits:
+        c_limits = {
+            'ROTI': [0,0.5*scale,'TECu/min'],
+            '2-10 minute TEC variations': [-0.4*scale,0.4*scale,'TECu'],
+            '10-20 minute TEC variations': [-0.6*scale,0.6*scale,'TECu'],
+            '20-60 minute TEC variations': [-1*scale,1*scale,'TECu'],
+            'tec': [0,50*scale,'TECu/min'],
+            'tec_adjusted': [0,50*scale,'TECu'],
+        }
+    if not times:
+        times = [datetime(2023, 2, 6, 10, 25),
+                 datetime(2023, 2, 6, 10, 40),
+                 datetime(2023, 2, 6, 10, 45)]
+    times = [t.replace(tzinfo=t.tzinfo or _UTC) for t in times]
+
+    data_from_files = retrieve_data_multiple_source(files_path, type_d, times)
+    data = {type_d: data_from_files}
+    plot_map(times, data, type_d,
+             use_alpha=use_alpha,
+             lat_limits=(25, 50),
+             lon_limits=(25, 50),
+             sort=True,
+             markers=epicenters,
+             c_limits=c_limits)
+
+# plot_maps([FILES_PRODUCT_10_24, TNPGN_FILES_PRODUCT_10_24],
+#           FILES_PRODUCT_10_24,
+#           EPICENTERS['10:24'])
+# plot_maps([FILES_PRODUCT_10_24],
+#           FILES_PRODUCT_10_24,
+#           EPICENTERS['10:24'])
+
+
+my_plot_maps(["roti_10_24.h5", "tnpgn_roti_10_24.h5"], MapType.ROTI, EPICENTERS['10:24'])
 exit()
 
-
+FILES_PRODUCT_10_24 = {"roti_10_24.h5": "ROTI",
+                       "dtec_2_10_10_24.h5": "2-10 minute TEC variations",
+                       "dtec_10_20_10_24.h5": "10-20 minute TEC variations",
+                       "dtec_20_60_10_24.h5": "20-60 minute TEC variations",
+                      }
+TNPGN_FILES_PRODUCT_10_24 = {"tnpgn_roti_10_24.h5": "ROTI",
+                             "tnpgn_dtec_2_10_10_24.h5": "2-10 minute TEC variations",
+                             "tnpgn_dtec_10_20_10_24.h5": "10-20 minute TEC variations",
+                             "tnpgn_dtec_20_60_10_24.h5": "20-60 minute TEC variations",
+                            }
 
 
 plot_maps([TNPGN_FILES_PRODUCT_10_24],
