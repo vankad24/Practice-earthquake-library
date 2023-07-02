@@ -307,7 +307,7 @@ def plot_map(plot_times, data, type_d,
                                     ax1.get_position().y0,
                                     0.02,
                                     ax1.get_position().height])
-                cbar = ax1.figure.colorbar(sctr, cax=cax)
+                cbar = ax1.figure.colorbar(sctr, cax=cax) #color bar
                 cbar_label = c_limits[prod][2] + "\n" if type_d == "ROTI" else c_limits[prod][2]
                 cbar.ax.set_ylabel(cbar_label, rotation=-90, va="bottom")
 
@@ -476,7 +476,8 @@ times = [datetime(2023, 2, 6, 1, 17),
 times = [t.replace(tzinfo=t.tzinfo or _UTC) for t in times]
 for f in FILES_PRODUCT_01_17:
     data = retrieve_data(f, FILES_PRODUCT_01_17[f], times)
-    plot_map(times, data, FILES_PRODUCT_01_17[f],
+    _data = {FILES_PRODUCT_01_17[f]: data}
+    plot_map(times, _data, FILES_PRODUCT_01_17[f],
              lat_limits=(25, 50),
              lon_limits=(25, 50),
              markers=[EPICENTERS['01:17']])
