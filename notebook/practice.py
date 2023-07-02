@@ -60,12 +60,12 @@ jupyter-notebook
 
 # Install requirements
 """
-
-!pip install requests
-!pip install h5py
-!pip install numpy
-!pip install matplotlib
-!pip install scipy
+#
+# !pip install requests
+# !pip install h5py
+# !pip install numpy
+# !pip install matplotlib
+# !pip install scipy
 
 """# Load data
 
@@ -143,7 +143,7 @@ for local_file, url in URLS.items():
 
 """# Including necessary packages"""
 
-!pip install cartopy
+# !pip install cartopy
 import cartopy
 
 import h5py
@@ -203,15 +203,17 @@ EPICENTERS = {'01:17': {'lat': 37.220,
 
 _UTC = tz.gettz('UTC')
 
-"""# Rertrieve and plot methods"""
+"""# Retrieve and plot methods"""
 
-def prepare_layout(ax,
-                   lon_limits,
-                   lat_limits):
+
+def _prepare_layout(ax,
+                    lon_limits,
+                    lat_limits):
+    """Настраивает отображение"""
     plt.rcParams.update(DEFAULT_PARAMS)
     gl = ax.gridlines(linewidth=2, color='gray', alpha=0.5, draw_labels=True, linestyle='--')
-    gl.xlabels_top = False
-    gl.ylabels_right = False
+    gl.top_labels = False
+    gl.right_labels = False
     gl.xformatter = LONGITUDE_FORMATTER
     gl.yformatter = LATITUDE_FORMATTER
     ax.set_xlim(*lon_limits)
@@ -271,8 +273,8 @@ def plot_map(plot_times, data, type_d,
             lons = arr['lon']
             values = arr['vals']
 
-            prepare_layout(ax1, lon_limits, lat_limits)
-            if use_alpha:
+            _prepare_layout(ax1, lon_limits, lat_limits)
+            if use_alpha: #Использовать прозрачность у точек или нет
                 m = max(np.max(values), -np.min(values))
                 alphas = [(v+m/4)/(m+m/4) for v in values]
                 alphas = [abs(a) for a in alphas]
@@ -285,11 +287,11 @@ def plot_map(plot_times, data, type_d,
                                vmin = clims[prod][0],
                                vmax = clims[prod][1],
                                cmap = 'jet')
-            for marker in markers:
+            for marker in markers: #расстановка звёздочек
                 ax1.scatter(marker['lon'], marker['lat'],
                             marker='*', color="black", s=400,
                             zorder=5)
-            if iprod == 0:
+            if iprod == 0: #заголовок, если строк с картинками несколько
                 ax1.set_title(time.strftime(TIME_FORMAT)[:-7]+'\n'+prod)
             else:
                 ax1.set_title('\n'+prod)
@@ -315,7 +317,7 @@ def plot_map(plot_times, data, type_d,
     plt.rcdefaults()
 
 
-#Plot data from map file
+#Read data and arrays from h5 file
 def retrieve_data(file, type_d, times=[]):
     """
     Plotting data from map file
@@ -323,28 +325,18 @@ def retrieve_data(file, type_d, times=[]):
             <type_d> string type of data going to be plotted
     output - figures
     """
-    f_in = h5py.File(file, 'r')
-    lats = []
-    lons = []
-    values = []
-    data = {}
-    for str_time in list(f_in['data'])[:]:
-        time = datetime.strptime(str_time, TIME_FORMAT)
-        time = time.replace(tzinfo=time.tzinfo or _UTC)
-        if times and not time in times:
-            continue
-        data[time] = f_in['data'][str_time][:]
+    with h5py.File(file, 'r') as f_in:
+        lats = []
+        lons = []
+        values = []
+        data = {}
+        for str_time in list(f_in['data'])[:]:
+            time = datetime.strptime(str_time, TIME_FORMAT)
+            time = time.replace(tzinfo=time.tzinfo or _UTC)
+            if times and not time in times:
+                continue
+            data[time] = f_in['data'][str_time][:]
     return data
-
-def _merge_structured_arrays(arrays):
-    ns = [len(array) for array in arrays]
-    array_out = arrays[0].copy()
-    array_out.resize(sum(ns))
-    N = ns[0]
-    for i in range(1, len(ns)):
-        array_out[N:N + ns[i]] = arrays[i]
-        N = N + ns[i]
-    return array_out
 
 def retrieve_data_multiple_source(files, type_d, times=[]):
     datas = defaultdict(list)
@@ -353,7 +345,7 @@ def retrieve_data_multiple_source(files, type_d, times=[]):
         for time, data in file_data.items():
             datas[time].append(data)
     for time in datas:
-        datas[time] = _merge_structured_arrays(datas[time])
+        datas[time] = np.concatenate(datas[time])
     return datas
 
 def plot_maps(prod_files, prods, epc, clims=None, times=None, scale=1):
@@ -368,7 +360,7 @@ def plot_maps(prod_files, prods, epc, clims=None, times=None, scale=1):
             'tec': [0,50*scale,'TECu/min'],
             'tec_adjusted': [0,50*scale,'TECu'],
         }
-    if times:
+    if times: #todo
         pass
     else:
         times = [datetime(2023, 2, 6, 10, 25),
@@ -386,19 +378,21 @@ def plot_maps(prod_files, prods, epc, clims=None, times=None, scale=1):
                  markers=[EPICENTERS['10:24']],
                  clims=C_LIMITS)
 
-FILES_PRODUCT_10_24
+plot_maps([FILES_PRODUCT_10_24],
+          FILES_PRODUCT_10_24,
+          EPICENTERS['10:24'])
+exit()
+
 
 plot_maps([FILES_PRODUCT_10_24, TNPGN_FILES_PRODUCT_10_24],
           FILES_PRODUCT_10_24,
           EPICENTERS['10:24'])
 
-plot_maps([FILES_PRODUCT_10_24],
-          FILES_PRODUCT_10_24,
-          EPICENTERS['10:24'])
 
 plot_maps([TNPGN_FILES_PRODUCT_10_24],
            TNPGN_FILES_PRODUCT_10_24,
            EPICENTERS['10:24'])
+
 
 """## Repeat plot for night quake
 
@@ -940,7 +934,7 @@ def get_dist_time(data, eq_location, direction='all'):
         elif direction == "west":
             inds = lats <= _eq_location["lon"]
         else:
-            inds = numpy.isreal(lats)
+            inds = np.isreal(lats)
         lats = lats[inds]
         lons = lons[inds]
         vals = vals[inds]
