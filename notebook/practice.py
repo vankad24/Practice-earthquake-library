@@ -241,7 +241,7 @@ def plot_map(plot_times, data, type_d,
              sort=False,
              use_alpha=False,
              c_limits=C_LIMITS,
-             savefig=''):
+             save_path=None):
     """
     Plotting data
     input - <time> string type time from SIMuRG map file
@@ -310,17 +310,15 @@ def plot_map(plot_times, data, type_d,
                 cbar = ax1.figure.colorbar(sctr, cax=cax)
                 cbar_label = c_limits[prod][2] + "\n" if type_d == "ROTI" else c_limits[prod][2]
                 cbar.ax.set_ylabel(cbar_label, rotation=-90, va="bottom")
-            directory = os.getcwd()
-            ax1.xaxis.set_ticks_position('none')
-            #If you want to save file uncomment next line
-            #plt.savefig(os.path.join(directory,time[:-7].replace(':','-')+'.png') , fmt = 'png')
 
-    if savefig:
-        plt.savefig(savefig)
-    else:
-        plt.show()
+            ax1.xaxis.set_ticks_position('none')
+
+            if save_path:
+                plt.savefig(save_path)
+
+
+    plt.show()
     plt.close()
-    #plt.tight_layout()
     plt.rcdefaults()
 
 
@@ -400,25 +398,13 @@ class MapType(Enum):
     TEC_ADJUSTED = 'tec_adjusted'
 
 # epicenter - dict with lat, lon
-def my_plot_maps(files_path, map_type: MapType, epicenters, c_limits=None, times=None, scale=1, use_alpha=True):
+def my_plot_maps(files_path, map_type: MapType, times, epicenters, c_limits=C_LIMITS, scale=1, use_alpha=True):
     type_d = map_type.value
     if not isinstance(files_path, list):
         files_path = [files_path]
     if not isinstance(epicenters, list):
         epicenters = [epicenters]
-    if not c_limits:
-        c_limits = {
-            'ROTI': [0,0.5*scale,'TECu/min'],
-            '2-10 minute TEC variations': [-0.4*scale,0.4*scale,'TECu'],
-            '10-20 minute TEC variations': [-0.6*scale,0.6*scale,'TECu'],
-            '20-60 minute TEC variations': [-1*scale,1*scale,'TECu'],
-            'tec': [0,50*scale,'TECu/min'],
-            'tec_adjusted': [0,50*scale,'TECu'],
-        }
-    if not times:
-        times = [datetime(2023, 2, 6, 10, 25),
-                 datetime(2023, 2, 6, 10, 40),
-                 datetime(2023, 2, 6, 10, 45)]
+
     times = [t.replace(tzinfo=t.tzinfo or _UTC) for t in times]
 
     data_from_files = retrieve_data_multiple_source(files_path, type_d, times)
@@ -438,8 +424,10 @@ def my_plot_maps(files_path, map_type: MapType, epicenters, c_limits=None, times
 #           FILES_PRODUCT_10_24,
 #           EPICENTERS['10:24'])
 
-
-my_plot_maps(["roti_10_24.h5", "tnpgn_roti_10_24.h5"], MapType.ROTI, EPICENTERS['10:24'])
+times = [datetime(2023, 2, 6, 10, 25),
+                 datetime(2023, 2, 6, 10, 40),
+                 datetime(2023, 2, 6, 10, 45)]
+my_plot_maps(["roti_10_24.h5", "tnpgn_roti_10_24.h5"], MapType.ROTI, times, EPICENTERS['10:24'])
 exit()
 
 FILES_PRODUCT_10_24 = {"roti_10_24.h5": "ROTI",
