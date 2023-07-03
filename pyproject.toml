@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "practice-earthquake-library"
+version = "0.1.0"
+description = ""
+authors = ["Vankad24 <vankad24@mail.ru>, Sergei <monyaksergey@mail.ru>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "practice_earthquake_library"}]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+requests = "2.29.0"
+h5py = "3.9.0"
+numpy = "1.25"
+matplotlib = "3.6.2"
+scipy = "1.11.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
