@@ -45,3 +45,13 @@ conda install jupyterlab
 conda install cartopy
 jupyter-notebook
 ```
+
+# Install requirements
+```
+!pip install requests
+!pip install h5py
+!pip install numpy
+!pip install matplotlib
+!pip install scipy
+!pip install cartopy
+```
