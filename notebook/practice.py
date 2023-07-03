@@ -398,7 +398,16 @@ class MapType(Enum):
     TEC_ADJUSTED = 'tec_adjusted'
 
 # epicenter - dict with lat, lon
-def my_plot_maps(files_path, map_type: MapType, times, epicenters, c_limits=C_LIMITS, scale=1, use_alpha=True):
+def my_plot_maps(files_path, map_type: MapType, times, epicenters, c_limits=None, scale=1, use_alpha=True):
+    if not c_limits:
+        c_limits={
+            'ROTI': [0,0.5*scale,'TECu/min'],
+            '2-10 minute TEC variations': [-0.4*scale,0.4*scale,'TECu'],
+            '10-20 minute TEC variations': [-0.6*scale,0.6*scale,'TECu'],
+            '20-60 minute TEC variations': [-1*scale,1*scale,'TECu'],
+            'tec': [0,50*scale,'TECu/min'],
+            'tec_adjusted': [0,50*scale,'TECu'],
+        }
     type_d = map_type.value
     if not isinstance(files_path, list):
         files_path = [files_path]
@@ -417,6 +426,118 @@ def my_plot_maps(files_path, map_type: MapType, times, epicenters, c_limits=C_LI
              markers=epicenters,
              c_limits=c_limits)
 
+"""# Distance time"""
+
+def get_dist_time(data, eq_location, direction='all'):
+    x, y, c = [], [], []
+    for time, map_data in data.items():
+        lats = np.radians(map_data["lat"][:])
+        lons = np.radians(map_data["lon"][:])
+        vals = map_data["vals"][:]
+        _eq_location = {}
+        _eq_location["lat"] = np.radians(eq_location["lat"])
+        _eq_location["lon"] = np.radians(eq_location["lon"])
+        if direction == "all":
+            inds = np.isreal(lats)
+        elif direction == "north":
+            inds = lats >= _eq_location["lat"]
+        elif direction == "south":
+            inds = lats <= _eq_location["lat"]
+        elif direction == "east":
+            inds = lats >= _eq_location["lon"]
+        elif direction == "west":
+            inds = lats <= _eq_location["lon"]
+        else:
+            inds = np.isreal(lats)
+        lats = lats[inds]
+        lons = lons[inds]
+        vals = vals[inds]
+        plats = np.zeros_like(lats)
+        plons = np.zeros_like(lons)
+        plats[:] = _eq_location["lat"]
+        plons[:] = _eq_location["lon"]
+
+        dists = great_circle_distance_numpy(lats,lons,
+                                            plats, plons)
+
+
+        x.extend([time] * len(vals))
+        y.extend(dists / 1000)
+        c.extend(vals)
+    return x, y, c
+
+
+def my_plot_distance_time(file_path, map_type: MapType, epicenter, sort = True, line=dict(), c_limits=None, dmax=1750):
+    if not c_limits:
+        c_limits = {
+            'ROTI': [-0, 0.5, 'TECu/min\n'],
+            '2-10 minute TEC variations': [-0.6, 0.6, 'TECu'],
+            '10-20 minute TEC variations': [-0.8, 0.8, 'TECu'],
+            '20-60 minute TEC variations': [-1.0, 1.0, 'TECu'],
+            'tec': [0, 50, 'TECu/min'],
+            'tec_adjusted': [0, 50, 'TECu'],
+        }
+
+    ptype = map_type.value
+    data = retrieve_data(file_path, ptype)
+    x, y, c = get_dist_time(data, epicenter)
+
+    c_abs = [abs(_c) for _c in c]
+    if sort:
+        x = [i for _, i in sorted(zip(c_abs, x))]
+        y = [i for _, i in sorted(zip(c_abs, y))]
+        c = [i for _, i in sorted(zip(c_abs, c))]
+        # x = [i for _, i in sorted(zip(c, x))]
+        # y = [i for _, i in sorted(zip(c, y))]
+        # c.sort()
+
+    times = [t for t in data]
+    times.sort()
+    plt.figure(figsize=(18, 5))
+    plt.rcParams.update(DEFAULT_PARAMS)
+    plot_ax = plt.axes()
+    plt.scatter(x, y, c=c, cmap='jet')
+    cbar = plt.colorbar()
+    plt.clim(c_limits[ptype][0], c_limits[ptype][1])
+    plt.ylabel('Distance, km')
+
+    dt_utc = times[-1].astimezone()
+    formatted_string = dt_utc.strftime("UTC for %B %d, %Y") #'UTC for February 6, 2023'
+    plt.xlabel(formatted_string)
+
+    plt.xlim(times[0], times[-1])
+    plt.ylim(0, dmax)
+    # plot vertical lines for earthquake times
+    for epc, params in EPICENTERS.items():
+        plt.axvline(x=params['time'], color='black', linewidth=3)
+    cbar.ax.set_ylabel(c_limits[ptype][2], rotation=-90, va="bottom")
+    plot_ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
+
+from numpy import pi, sin, cos, arccos, arcsin
+from scipy.stats import norm
+
+RE_meters = 6371000
+
+def great_circle_distance_numpy(late, lone, latp, lonp, R=RE_meters):
+    """
+    Calculates arc length. Uses numpy arrays
+    late, latp: double
+        latitude in radians
+    lone, lonp: double
+        longitudes in radians
+    R: double
+        radius
+    """
+    lone[np.where(lone < 0)] = lone[np.where(lone < 0)] + 2*pi
+    lonp[np.where(lonp < 0)] = lonp[np.where(lonp < 0)] + 2*pi
+    dlon = lonp - lone
+    inds = np.where((dlon > 0) & (dlon > pi))
+    dlon[inds] = 2 * pi - dlon[inds]
+    dlon[np.where((dlon < 0) & (dlon < -pi))] += 2 * pi
+    dlon[np.where((dlon < 0) & (dlon < -pi))] = -dlon[np.where((dlon < 0) & (dlon < -pi))]
+    cosgamma = sin(late) * sin(latp) + cos(late) * cos(latp) * cos(dlon)
+    return R * arccos(cosgamma)
+
 # plot_maps([FILES_PRODUCT_10_24, TNPGN_FILES_PRODUCT_10_24],
 #           FILES_PRODUCT_10_24,
 #           EPICENTERS['10:24'])
@@ -427,7 +548,10 @@ def my_plot_maps(files_path, map_type: MapType, times, epicenters, c_limits=C_LI
 times = [datetime(2023, 2, 6, 10, 25),
                  datetime(2023, 2, 6, 10, 40),
                  datetime(2023, 2, 6, 10, 45)]
-my_plot_maps(["roti_10_24.h5", "tnpgn_roti_10_24.h5"], MapType.ROTI, times, EPICENTERS['10:24'])
+# my_plot_maps(["roti_10_24.h5", "tnpgn_roti_10_24.h5"], MapType.ROTI, times, EPICENTERS['10:24'])
+
+my_plot_distance_time("dtec_10_20_10_24.h5", MapType.TEC_10_20, EPICENTERS['10:24'])
+plt.show()
 exit()
 
 FILES_PRODUCT_10_24 = {"roti_10_24.h5": "ROTI",
@@ -712,10 +836,7 @@ plot_single_sat(dtecs, sat, EPICENTERS['10:24'], 'roti',
 
 """# Individual line-of-sight velocity estimate"""
 
-from numpy import pi, sin, cos, arccos, arcsin
-from scipy.stats import norm
 
-RE_meters = 6371000
 
 def sub_ionospheric(s_lat, s_lon, hm, az, el, R=RE_meters):
     """
@@ -735,27 +856,6 @@ def sub_ionospheric(s_lat, s_lon, hm, az, el, R=RE_meters):
     lon = lon - 2 * pi if lon > pi else lon
     lon = lon + 2 * pi if lon < -pi else lon
     return lat, lon
-
-
-def great_circle_distance_numpy(late, lone, latp, lonp, R=RE_meters):
-    """
-    Calculates arc length. Uses numpy arrays
-    late, latp: double
-        latitude in radians
-    lone, lonp: double
-        longitudes in radians
-    R: double
-        radius
-    """
-    lone[np.where(lone < 0)] = lone[np.where(lone < 0)] + 2*pi
-    lonp[np.where(lonp < 0)] = lonp[np.where(lonp < 0)] + 2*pi
-    dlon = lonp - lone
-    inds = np.where((dlon > 0) & (dlon > pi))
-    dlon[inds] = 2 * pi - dlon[inds]
-    dlon[np.where((dlon < 0) & (dlon < -pi))] += 2 * pi
-    dlon[np.where((dlon < 0) & (dlon < -pi))] = -dlon[np.where((dlon < 0) & (dlon < -pi))]
-    cosgamma = sin(late) * sin(latp) + cos(late) * cos(latp) * cos(dlon)
-    return R * arccos(cosgamma)
 
 def calculate_distances_from_epicenter(data, coords, sat, elat, elon):
     for _data in data[sat]:
@@ -966,45 +1066,7 @@ for t in times:
              savefig=f"{t}",
              clims=C_LIMITS)
 
-"""# Distance time"""
 
-def get_dist_time(data, eq_location, direction='all'):
-    x, y, c = [], [], []
-    for time, map_data in data.items():
-        lats = np.radians(map_data["lat"][:])
-        lons = np.radians(map_data["lon"][:])
-        vals = map_data["vals"][:]
-        _eq_location = {}
-        _eq_location["lat"] = np.radians(eq_location["lat"])
-        _eq_location["lon"] = np.radians(eq_location["lon"])
-        if direction == "all":
-            inds = np.isreal(lats)
-        elif direction == "north":
-            inds = lats >= _eq_location["lat"]
-        elif direction == "south":
-            inds = lats <= _eq_location["lat"]
-        elif direction == "east":
-            inds = lats >= _eq_location["lon"]
-        elif direction == "west":
-            inds = lats <= _eq_location["lon"]
-        else:
-            inds = np.isreal(lats)
-        lats = lats[inds]
-        lons = lons[inds]
-        vals = vals[inds]
-        plats = np.zeros_like(lats)
-        plons = np.zeros_like(lons)
-        plats[:] = _eq_location["lat"]
-        plons[:] = _eq_location["lon"]
-
-        dists = great_circle_distance_numpy(lats,lons,
-                                            plats, plons)
-
-
-        x.extend([time] * len(vals))
-        y.extend(dists / 1000)
-        c.extend(vals)
-    return x, y, c
 
 def plot_distance_time(x, y, c, ptype, sort = True, line=dict(), clims=C_LIMITS, dmax=1750):
     c_abs = [abs(_c) for _c in c]
@@ -1053,23 +1115,25 @@ C_LIMITS ={
     'tec_adjusted': [0,50,'TECu'],
 }
 
-eq_location = EPICENTERS['10:24']
+epicenter_location = EPICENTERS['10:24']
 
 data = retrieve_data("roti_10_24.h5", "ROTI")
-x, y, c = get_dist_time(data, eq_location)
+x, y, c = get_dist_time(data, epicenter_location)
 plot_distance_time(x, y, c, "ROTI", clims=C_LIMITS)
 plot_line(2.000, datetime(2023, 2, 6, 10, 35))
 
 data = retrieve_data("dtec_2_10_10_24.h5", "2-10 minute TEC variations")
-x, y, c = get_dist_time(data, eq_location)
+x, y, c = get_dist_time(data, epicenter_location)
 plot_distance_time(x, y, c, "2-10 minute TEC variations", clims=C_LIMITS)
 plot_line(1.500, datetime(2023, 2, 6, 10, 32, 30), style='dashed')
 plot_line(1.300, datetime(2023, 2, 6, 10, 34, 30))
 plot_line(0.900, datetime(2023, 2, 6, 10, 37), style='dotted')
 
 data = retrieve_data("dtec_10_20_10_24.h5", "10-20 minute TEC variations")
-x, y, c = get_dist_time(data, eq_location)
+x, y, c = get_dist_time(data, epicenter_location)
 plot_distance_time(x, y, c, "10-20 minute TEC variations", clims=C_LIMITS)
+
+
 
 C_LIMITS ={
     'ROTI': [-0,0.5,'TECu/min\n'],
@@ -1080,17 +1144,17 @@ C_LIMITS ={
     'tec_adjusted': [0,50,'TECu'],
 }
 
-eq_location = EPICENTERS['10:24']
+epicenter_location = EPICENTERS['10:24']
 
 data = retrieve_data_multiple_source(["roti_10_24.h5", "tnpgn_roti_10_24.h5"],
                                       "ROTI")
-x, y, c = get_dist_time(data, eq_location)
+x, y, c = get_dist_time(data, epicenter_location)
 plot_distance_time(x, y, c, "ROTI")
 plot_line(2.000, datetime(2023, 2, 6, 10, 35))
 
 data = retrieve_data_multiple_source(["dtec_2_10_10_24.h5", "tnpgn_dtec_2_10_10_24.h5"],
                                       "2-10 minute TEC variations")
-x, y, c = get_dist_time(data, eq_location)
+x, y, c = get_dist_time(data, epicenter_location)
 plot_distance_time(x, y, c, "2-10 minute TEC variations")
 plot_line(1.500, datetime(2023, 2, 6, 10, 32, 30), style='dashed')
 plot_line(1.300, datetime(2023, 2, 6, 10, 34, 30))
@@ -1098,7 +1162,7 @@ plot_line(0.900, datetime(2023, 2, 6, 10, 37), style='dotted')
 
 data = retrieve_data_multiple_source(["dtec_10_20_10_24.h5", "tnpgn_dtec_10_20_10_24.h5"],
                                       "10-20 minute TEC variations")
-x, y, c = get_dist_time(data, eq_location)
+x, y, c = get_dist_time(data, epicenter_location)
 plot_distance_time(x, y, c, "10-20 minute TEC variations")
 
 """## Compare 01:17 and 10:24 quake using ROTI"""
@@ -1112,10 +1176,10 @@ C_LIMITS ={
     'tec_adjusted': [0,50,'TECu'],
 }
 
-eq_location = EPICENTERS['10:24']
+epicenter_location = EPICENTERS['10:24']
 
 data = retrieve_data("roti_10_24.h5", "ROTI")
-x, y, c = get_dist_time(data, eq_location)
+x, y, c = get_dist_time(data, epicenter_location)
 plot_distance_time(x, y, c, "ROTI")
 
 C_LIMITS ={
@@ -1127,13 +1191,13 @@ C_LIMITS ={
     'tec_adjusted': [0,50,'TECu'],
 }
 
-eq_location = EPICENTERS['01:17']
+epicenter_location = EPICENTERS['01:17']
 
 data = retrieve_data("roti_01_17.h5", "ROTI")
 times = [t for t in data]
 times.sort()
 data = {t: data[t] for t in times[120:]} # start from 01:00 UT
-x, y, c = get_dist_time(data, eq_location)
+x, y, c = get_dist_time(data, epicenter_location)
 plot_distance_time(x, y, c, "ROTI")
 
 """## Compare 01:17 and 10:24 quake using ROTI 2-10 minute variations"""
@@ -1147,11 +1211,11 @@ C_LIMITS ={
     'tec_adjusted': [0,50,'TECu'],
 }
 
-eq_location = EPICENTERS['10:24']
+epicenter_location = EPICENTERS['10:24']
 
 data = retrieve_data_multiple_source(["dtec_2_10_10_24.h5", "tnpgn_dtec_2_10_10_24.h5"],
                                       "2-10 minute TEC variations")
-x, y, c = get_dist_time(data, eq_location)
+x, y, c = get_dist_time(data, epicenter_location)
 plot_distance_time(x, y, c, "2-10 minute TEC variations", clims=C_LIMITS)
 plot_line(1.500, datetime(2023, 2, 6, 10, 32, 30), style='dashed')
 plot_line(1.300, datetime(2023, 2, 6, 10, 34, 30))
@@ -1166,14 +1230,14 @@ C_LIMITS ={
     'tec_adjusted': [0,50,'TECu'],
 }
 
-eq_location = EPICENTERS['01:17']
+epicenter_location = EPICENTERS['01:17']
 
 data = retrieve_data_multiple_source(["dtec_2_10_01_17.h5", "tnpgn_dtec_2_10_01_17.h5"],
                                       "2-10 minute TEC variations")
 times = [t for t in data]
 times.sort()
 data = {t: data[t] for t in times[120:]} # start from 01:00 UT
-x, y, c = get_dist_time(data, eq_location)
+x, y, c = get_dist_time(data, epicenter_location)
 plot_distance_time(x, y, c, "2-10 minute TEC variations", clims=C_LIMITS)
 plot_line(1.500, datetime(2023, 2, 6, 1, 26, 30), style='dashed')
 plot_line(1.300, datetime(2023, 2, 6, 1, 29))
@@ -1188,10 +1252,10 @@ C_LIMITS ={
     'tec_adjusted': [0,50,'TECu'],
 }
 
-eq_location = EPICENTERS['10:24']
+epicenter_location = EPICENTERS['10:24']
 
 data = retrieve_data("dtec_2_10_10_24.h5", "2-10 minute TEC variations")
-x, y, c = get_dist_time(data, eq_location)
+x, y, c = get_dist_time(data, epicenter_location)
 plot_distance_time(x, y, c, "2-10 minute TEC variations", clims=C_LIMITS)
 plot_line(1.500, datetime(2023, 2, 6, 10, 32, 30), style='dashed')
 plot_line(1.300, datetime(2023, 2, 6, 10, 34, 30))
@@ -1206,13 +1270,13 @@ C_LIMITS ={
     'tec_adjusted': [0,50,'TECu'],
 }
 
-eq_location = EPICENTERS['01:17']
+epicenter_location = EPICENTERS['01:17']
 
 data = retrieve_data("dtec_2_10_01_17.h5", "2-10 minute TEC variations")
 times = [t for t in data]
 times.sort()
 data = {t: data[t] for t in times[120:]} # start from 01:00 UT
-x, y, c = get_dist_time(data, eq_location)
+x, y, c = get_dist_time(data, epicenter_location)
 plot_distance_time(x, y, c, "2-10 minute TEC variations", clims=C_LIMITS)
 plot_line(1.500, datetime(2023, 2, 6, 1, 26, 0), style='dashed')
 plot_line(1.300, datetime(2023, 2, 6, 1, 28, 3))
@@ -1229,18 +1293,18 @@ C_LIMITS ={
     'tec_adjusted': [0,50,'TECu'],
 }
 
-eq_location = EPICENTERS['10:24']
+epicenter_location = EPICENTERS['10:24']
 
 #data = retrieve_data("dtec_2_10_10_24.h5", "2-10 minute TEC variations")
 data = retrieve_data_multiple_source(["dtec_2_10_10_24.h5", "tnpgn_dtec_2_10_10_24.h5"],
                                       "2-10 minute TEC variations")
-x, y, c = get_dist_time(data, eq_location, direction="north")
+x, y, c = get_dist_time(data, epicenter_location, direction="north")
 plot_distance_time(x, y, c, "2-10 minute TEC variations", clims=C_LIMITS)
 plot_line(1.500, datetime(2023, 2, 6, 10, 33), style='dashed')
 plot_line(1.400, datetime(2023, 2, 6, 10, 37, 30))
 plot_line(1.100, datetime(2023, 2, 6, 10, 42), style='dotted')
 
-x, y, c = get_dist_time(data, eq_location, direction="south")
+x, y, c = get_dist_time(data, epicenter_location, direction="south")
 plot_distance_time(x, y, c, "2-10 minute TEC variations", clims=C_LIMITS)
 plot_line(1.500, datetime(2023, 2, 6, 10, 32), style='dashed')
 plot_line(1.200, datetime(2023, 2, 6, 10, 34, 30))
@@ -1249,11 +1313,11 @@ plot_line(0.900, datetime(2023, 2, 6, 10, 37), style='dotted')
 #data = retrieve_data("roti_10_24.h5", "ROTI")
 data = retrieve_data_multiple_source(["roti_10_24.h5", "tnpgn_roti_10_24.h5"],
                                       "ROTI")
-x, y, c = get_dist_time(data, eq_location, direction="north")
+x, y, c = get_dist_time(data, epicenter_location, direction="north")
 plot_distance_time(x, y, c, "ROTI", clims=C_LIMITS)
 plot_line(2.000, datetime(2023, 2, 6, 10, 35))
 
-x, y, c = get_dist_time(data, eq_location, direction="south")
+x, y, c = get_dist_time(data, epicenter_location, direction="south")
 plot_distance_time(x, y, c, "ROTI", clims=C_LIMITS)
 plot_line(2.000, datetime(2023, 2, 6, 10, 35))
 
@@ -1266,16 +1330,16 @@ C_LIMITS ={
     'tec_adjusted': [0,50,'TECu'],
 }
 
-eq_location = EPICENTERS['10:24']
+epicenter_location = EPICENTERS['10:24']
 data = retrieve_data_multiple_source(["dtec_10_20_10_24.h5", "tnpgn_dtec_10_20_10_24.h5"],
                                       "10-20 minute TEC variations")
-x, y, c = get_dist_time(data, eq_location, direction="north")
+x, y, c = get_dist_time(data, epicenter_location, direction="north")
 plot_distance_time(x, y, c, "10-20 minute TEC variations", clims=C_LIMITS)
 plot_line(1.500, datetime(2023, 2, 6, 10, 33), style='dashed')
 plot_line(1.400, datetime(2023, 2, 6, 10, 37, 30))
 plot_line(1.100, datetime(2023, 2, 6, 10, 42), style='dotted')
 
-x, y, c = get_dist_time(data, eq_location, direction="south")
+x, y, c = get_dist_time(data, epicenter_location, direction="south")
 plot_distance_time(x, y, c, "10-20 minute TEC variations", clims=C_LIMITS)
 plot_line(1.500, datetime(2023, 2, 6, 10, 32), style='dashed')
 plot_line(1.200, datetime(2023, 2, 6, 10, 34, 30))
@@ -1289,7 +1353,7 @@ C_LIMITS ={
     'tec': [0,50,'TECu/min'],
     'tec_adjusted': [0,50,'TECu'],
 }
-eq_location = EPICENTERS['01:17']
+epicenter_location = EPICENTERS['01:17']
 
 #data = retrieve_data("dtec_2_10_01_17.h5", "2-10 minute TEC variations")
 data = retrieve_data_multiple_source(["dtec_2_10_01_17.h5", "tnpgn_dtec_2_10_01_17.h5"],
@@ -1298,13 +1362,13 @@ data = retrieve_data_multiple_source(["dtec_2_10_01_17.h5", "tnpgn_dtec_2_10_01_
 times = [t for t in data]
 times.sort()
 data = {t: data[t] for t in times[120:]} # start from 01:00 UT
-x, y, c = get_dist_time(data, eq_location, direction="north")
+x, y, c = get_dist_time(data, epicenter_location, direction="north")
 plot_distance_time(x, y, c, "2-10 minute TEC variations", clims=C_LIMITS)
 plot_line(1.500, datetime(2023, 2, 6, 1, 26), style='dashed')
 plot_line(1.300, datetime(2023, 2, 6, 1, 29))
 plot_line(0.900, datetime(2023, 2, 6, 1, 32), style='dotted')
 
-x, y, c = get_dist_time(data, eq_location, direction="south")
+x, y, c = get_dist_time(data, epicenter_location, direction="south")
 plot_distance_time(x, y, c, "2-10 minute TEC variations", clims=C_LIMITS)
 plot_line(1.500, datetime(2023, 2, 6, 1, 25, 3), style='dashed')
 plot_line(1.300, datetime(2023, 2, 6, 1, 28, 30))
@@ -1438,22 +1502,22 @@ C_LIMITS ={
     'tec_adjusted': [0,50,'TECu'],
 }
 
-eq_location = EPICENTERS['10:24']
+epicenter_location = EPICENTERS['10:24']
 
 data = retrieve_data("tnpgn_roti_10_24.h5", "ROTI")
-x, y, c = get_dist_time(data, eq_location)
+x, y, c = get_dist_time(data, epicenter_location)
 plot_distance_time(x, y, c, "ROTI")
 plot_line(2.000, datetime(2023, 2, 6, 10, 35))
 
 data = retrieve_data("tnpgn_dtec_2_10_10_24.h5", "2-10 minute TEC variations")
-x, y, c = get_dist_time(data, eq_location)
+x, y, c = get_dist_time(data, epicenter_location)
 plot_distance_time(x, y, c, "2-10 minute TEC variations")
 plot_line(1.500, datetime(2023, 2, 6, 10, 32), style='dashed')
 plot_line(1.300, datetime(2023, 2, 6, 10, 34, 30))
 plot_line(0.900, datetime(2023, 2, 6, 10, 37), style='dotted')
 
 data = retrieve_data("tnpgn_dtec_10_20_10_24.h5", "10-20 minute TEC variations")
-x, y, c = get_dist_time(data, eq_location)
+x, y, c = get_dist_time(data, epicenter_location)
 plot_distance_time(x, y, c, "10-20 minute TEC variations")
 
 C_LIMITS ={
@@ -1465,10 +1529,10 @@ C_LIMITS ={
     'tec_adjusted': [0,50,'TECu'],
 }
 
-eq_location = EPICENTERS['10:24']
+epicenter_location = EPICENTERS['10:24']
 
 data = retrieve_data("tnpgn_dtec_2_10_10_24.h5", "2-10 minute TEC variations")
-x, y, c = get_dist_time(data, eq_location)
+x, y, c = get_dist_time(data, epicenter_location)
 plot_distance_time(x, y, c, "2-10 minute TEC variations")
 plot_line(1.500, datetime(2023, 2, 6, 10, 32), style='dashed')
 plot_line(1.300, datetime(2023, 2, 6, 10, 34, 30))
@@ -1483,13 +1547,13 @@ C_LIMITS ={
     'tec_adjusted': [0,50,'TECu'],
 }
 
-eq_location = EPICENTERS['01:17']
+epicenter_location = EPICENTERS['01:17']
 
 data = retrieve_data("tnpgn_dtec_2_10_01_17.h5", "2-10 minute TEC variations")
 times = [t for t in data]
 times.sort()
 #data = {t: data[t] for t in times[120:]} # start from 01:00 UT
-x, y, c = get_dist_time(data, eq_location)
+x, y, c = get_dist_time(data, epicenter_location)
 plot_distance_time(x, y, c, "2-10 minute TEC variations")
 plot_line(1.500, datetime(2023, 2, 6, 1, 26), style='dashed')
 plot_line(1.300, datetime(2023, 2, 6, 1, 29))
@@ -1504,10 +1568,10 @@ C_LIMITS ={
     'tec_adjusted': [0,50,'TECu'],
 }
 
-eq_location = EPICENTERS['10:24']
+epicenter_location = EPICENTERS['10:24']
 
 data = retrieve_data("tnpgn_roti_10_24.h5", "ROTI")
-x, y, c = get_dist_time(data, eq_location)
+x, y, c = get_dist_time(data, epicenter_location)
 plot_distance_time(x, y, c, "ROTI")
 
 C_LIMITS ={
@@ -1519,12 +1583,12 @@ C_LIMITS ={
     'tec_adjusted': [0,50,'TECu'],
 }
 
-eq_location = EPICENTERS['01:17']
+epicenter_location = EPICENTERS['01:17']
 
 data = retrieve_data("tnpgn_roti_01_17.h5", "ROTI")
 times = [t for t in data]
 times.sort()
-x, y, c = get_dist_time(data, eq_location)
+x, y, c = get_dist_time(data, epicenter_location)
 plot_distance_time(x, y, c, "ROTI")
 
 """# Coordinates"""
@@ -1590,8 +1654,8 @@ for product in ['Xerror', 'Yerror', 'Zerror']:
                                  val_field=product,
                                  start=datetime(2023, 2, 6, 1),
                                  fin=datetime(2023, 2, 6, 2))
-    eq_location = EPICENTERS['01:17']
-    x, y, c = get_dist_time(data, eq_location)
+    epicenter_location = EPICENTERS['01:17']
+    x, y, c = get_dist_time(data, epicenter_location)
     plot_distance_time(x, y, c, "PPP error", clims={"PPP error": [-0.1, 0.1, product + ", m"]}, dmax=500)
 
 files = get_filenames(PPP_ROOT, select='by_time')
@@ -1600,8 +1664,8 @@ for product in ['Xerror', 'Yerror', 'Zerror']:
                                  val_field=product,
                                  start=datetime(2023, 2, 6, 10),
                                  fin=datetime(2023, 2, 6, 11))
-    eq_location = EPICENTERS['10:24']
-    x, y, c = get_dist_time(data, eq_location)
+    epicenter_location = EPICENTERS['10:24']
+    x, y, c = get_dist_time(data, epicenter_location)
     plot_distance_time(x, y, c, "PPP error", clims={"PPP error": [-0.1, 0.1, product + ", m"]}, dmax=500)
 
 """# Support code"""
