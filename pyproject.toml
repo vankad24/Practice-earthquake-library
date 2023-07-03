@@ -1,11 +1,11 @@
 [tool.poetry]
-name = "practice-earthquake-library"
+name = "ionoplot"
 version = "0.1.0"
 description = ""
-authors = ["Vankad24 <vankad24@mail.ru>, Sergei <monyaksergey@mail.ru>"]
+authors = ["Vankad24 <vankad24@mail.ru>", "Sergei <monyaksergey@mail.ru>"]
 license = "MIT"
 readme = "README.md"
-packages = [{include = "practice_earthquake_library"}]
+packages = [{include = "ionoplot"}]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
