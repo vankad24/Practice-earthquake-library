@@ -217,7 +217,7 @@ class MapType(Enum):
 
 # times - array with time need to be select from the files
 # epicenter - dict with lat, lon
-def my_plot_maps(files_path, map_type: MapType, times, epicenters, c_limits=None, scale=1, use_alpha=True, save_path=None):
+def plot_maps(files_path, map_type: MapType, times, epicenters, c_limits=None, scale=1, use_alpha=True, save_path=None):
     if not c_limits:
         c_limits={
             'ROTI': [0,0.5*scale,'TECu/min'],
@@ -286,7 +286,7 @@ def get_dist_time(data, eq_location, direction='all'):
     return x, y, c
 
 
-def my_plot_distance_time(file_path, map_type: MapType, epicenter, sort = True, line=dict(), c_limits=None, dmax=1750, save_path=None):
+def plot_distance_time(file_path, map_type: MapType, epicenter, sort = True, line=dict(), c_limits=None, dmax=1750, save_path=None):
     if not c_limits:
         c_limits = {
             'ROTI': [-0, 0.5, 'TECu/min\n'],
@@ -365,6 +365,6 @@ times = [datetime(2023, 2, 6, 10, 25),
                  datetime(2023, 2, 6, 10, 40),
                  datetime(2023, 2, 6, 10, 45)]
 
-# my_plot_maps(["roti_10_24.h5", "tnpgn_roti_10_24.h5"], MapType.ROTI, times, EPICENTERS['10:24'])
+# plot_maps(["roti_10_24.h5", "tnpgn_roti_10_24.h5"], MapType.ROTI, times, EPICENTERS['10:24'])
 
-my_plot_distance_time("notebook/dtec_10_20_10_24.h5", MapType.TEC_10_20, EPICENTERS['10:24'], save_path="./out/time2.png")
+plot_distance_time("notebook/dtec_10_20_10_24.h5", MapType.TEC_10_20, EPICENTERS['10:24'], save_path="./out/time2.png")
