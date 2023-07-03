@@ -1,12 +1,3 @@
-# Install requirements
-
-# !pip install requests
-# !pip install h5py
-# !pip install numpy
-# !pip install matplotlib
-# !pip install scipy
-# !pip install cartopy
-
 import datetime
 from collections import defaultdict
 from datetime import (datetime)
@@ -352,19 +343,3 @@ def great_circle_distance_numpy(late, lone, latp, lonp, R=RE_meters):
     dlon[np.where((dlon < 0) & (dlon < -pi))] = -dlon[np.where((dlon < 0) & (dlon < -pi))]
     cosgamma = sin(late) * sin(latp) + cos(late) * cos(latp) * cos(dlon)
     return R * arccos(cosgamma)
-
-EPICENTERS = {'01:17': {'lat': 37.220,
-                        'lon': 37.019,
-                        'time': datetime(2023, 2, 6, 1, 17, 34)},
-              '10:24': {'lat': 38.016,
-                        'lon': 37.206,
-                        'time': datetime(2023, 2, 6, 10, 24, 50)}
-             }
-
-times = [datetime(2023, 2, 6, 10, 25),
-                 datetime(2023, 2, 6, 10, 40),
-                 datetime(2023, 2, 6, 10, 45)]
-
-# plot_maps(["roti_10_24.h5", "tnpgn_roti_10_24.h5"], MapType.ROTI, times, EPICENTERS['10:24'])
-
-plot_distance_time("notebook/dtec_10_20_10_24.h5", MapType.TEC_10_20, EPICENTERS['10:24'], save_path="./out/time2.png")
