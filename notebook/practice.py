@@ -316,8 +316,8 @@ def plot_map(plot_times, data, type_d,
             if save_path:
                 plt.savefig(save_path)
 
-
-    plt.show()
+    if not save_path:
+        plt.show()
     plt.close()
     plt.rcdefaults()
 
@@ -398,7 +398,7 @@ class MapType(Enum):
     TEC_ADJUSTED = 'tec_adjusted'
 
 # epicenter - dict with lat, lon
-def my_plot_maps(files_path, map_type: MapType, times, epicenters, c_limits=None, scale=1, use_alpha=True):
+def my_plot_maps(files_path, map_type: MapType, times, epicenters, c_limits=None, scale=1, use_alpha=True, save_path=None):
     if not c_limits:
         c_limits={
             'ROTI': [0,0.5*scale,'TECu/min'],
@@ -424,7 +424,7 @@ def my_plot_maps(files_path, map_type: MapType, times, epicenters, c_limits=None
              lon_limits=(25, 50),
              sort=True,
              markers=epicenters,
-             c_limits=c_limits)
+             c_limits=c_limits, save_path=save_path)
 
 """# Distance time"""
 
@@ -467,7 +467,7 @@ def get_dist_time(data, eq_location, direction='all'):
     return x, y, c
 
 
-def my_plot_distance_time(file_path, map_type: MapType, epicenter, sort = True, line=dict(), c_limits=None, dmax=1750):
+def my_plot_distance_time(file_path, map_type: MapType, epicenter, sort = True, line=dict(), c_limits=None, dmax=1750, save_path=None):
     if not c_limits:
         c_limits = {
             'ROTI': [-0, 0.5, 'TECu/min\n'],
@@ -503,7 +503,7 @@ def my_plot_distance_time(file_path, map_type: MapType, epicenter, sort = True, 
 
     dt_utc = times[-1].astimezone()
     formatted_string = dt_utc.strftime("UTC for %B %d, %Y") #'UTC for February 6, 2023'
-    plt.xlabel(formatted_string)
+    plt.title(formatted_string)
 
     plt.xlim(times[0], times[-1])
     plt.ylim(0, dmax)
@@ -512,6 +512,10 @@ def my_plot_distance_time(file_path, map_type: MapType, epicenter, sort = True, 
         plt.axvline(x=params['time'], color='black', linewidth=3)
     cbar.ax.set_ylabel(c_limits[ptype][2], rotation=-90, va="bottom")
     plot_ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
+    if save_path:
+        plt.savefig(save_path)
+    else:
+        plt.show()
 
 from numpy import pi, sin, cos, arccos, arcsin
 from scipy.stats import norm
@@ -550,8 +554,8 @@ times = [datetime(2023, 2, 6, 10, 25),
                  datetime(2023, 2, 6, 10, 45)]
 # my_plot_maps(["roti_10_24.h5", "tnpgn_roti_10_24.h5"], MapType.ROTI, times, EPICENTERS['10:24'])
 
-my_plot_distance_time("dtec_10_20_10_24.h5", MapType.TEC_10_20, EPICENTERS['10:24'])
-plt.show()
+my_plot_distance_time("dtec_10_20_10_24.h5", MapType.TEC_10_20, EPICENTERS['10:24'], save_path="../out/time.png")
+
 exit()
 
 FILES_PRODUCT_10_24 = {"roti_10_24.h5": "ROTI",
